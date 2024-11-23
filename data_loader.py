@@ -13,7 +13,7 @@ def load_data(image_dir, mask_dir, img_size=(400, 400)):
     # Ensure alignment
     assert len(image_files) == len(mask_files), "Number of images and masks do not match!"
     for img, mask in zip(image_files, mask_files):
-        assert img.split('.')[0].split('_')[-1] == mask.split('.')[0].split('_')[-1], f"Mismatch: {img} and {mask}"
+        assert img.split('.')[0] == mask.split('.')[0], f"Mismatch: {img} and {mask}"
 
     # Load and preprocess
     images = [cv2.imread(os.path.join(image_dir, f), cv2.IMREAD_GRAYSCALE) for f in image_files]
@@ -45,8 +45,23 @@ class ImageDataGenerator(Sequence):
         return self._preprocess_batch(batch_images, batch_masks)
 
     def _preprocess_batch(self, batch_images, batch_masks):
-        processed_images = []
-        processed_masks = []
+       processed_images = []
+       processed_masks = []
+
+       for img, mask in zip(batch_images, batch_masks):
+            # Resize the image and mask to the target size
+            resized_img = cv2.resize(img, self.target_size)
+            resized_mask = cv2.resize(mask, self.target_size)
+
+            if self.augment:  # Apply data augmentation if augment is True
+               augmented_img, augmented_mask = self._augment(resized_img, resized_mask)
+               processed_images.append(augmented_img[..., np.newaxis] / 255.0)  # Add channel and normalize
+               processed_masks.append(augmented_mask[..., np.newaxis] / 255.0)  # Add channel and normalize
+            else:
+               processed_images.append(resized_img[..., np.newaxis] / 255.0)  # Add channel and normalize
+               processed_masks.append(resized_mask[..., np.newaxis] / 255.0)  # Add channel and normalize
+  
+        =return np.array(processed_images), np.array(processed_masks)
 
         for img, mask in zip(batch_images, batch_masks):
             # Resize the image and mask to the target size
@@ -61,7 +76,7 @@ class ImageDataGenerator(Sequence):
                 processed_images.append(resized_img / 255.0)
                 processed_masks.append(resized_mask / 255.0)
 
-        return np.array(processed_images), np.array(processed_masks)
+    return np.array(processed_images), np.array(processed_masks)
 
     def _augment(self, image, mask):
         # Example augmentations applied to both image and mask
