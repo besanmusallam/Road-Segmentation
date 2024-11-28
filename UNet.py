@@ -7,6 +7,12 @@
 # then increase the resolution
 # decrease number of channels
 # output is either (0,1) background and foreground
+
+
+## https://www.geeksforgeeks.org/u-net-architecture-explained/
+## Try to implement inception
+
+
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from sklearn.metrics import f1_score
@@ -65,10 +71,10 @@ def unet_model(input_shape = (512, 512, 1), num_classes = 1):
 	inputs = tf.keras.layers.Input(input_shape) 
 	
 	# Contracting Path 
-	s1 = encoder_block(inputs, 32) 
-	s2 = encoder_block(s1, 128) 
-	s3 = encoder_block(s2, 256) 
-	s4 = encoder_block(s3, 512) 
+	s1 = encoder_block(inputs, 512) 
+	s2 = encoder_block(s1, 256) 
+	s3 = encoder_block(s2, 128) 
+	s4 = encoder_block(s3, 32) 
 	
 	# Bottleneck 
 	b1 = tf.keras.layers.Conv2D(1024, 3, padding = 'same')(s4) 
