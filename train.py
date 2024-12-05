@@ -1,68 +1,116 @@
 import os
+from pathlib import Path
 import torch
 import torch.optim as optim
-from pathlib import Path
 from torch import nn
-from torchvision import transforms, utils, datasets
+from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
 
 from unet import UNet
 
-data_folder = "data"
+# Paths
+data_folder = r"C:\Users\Lenovo\Desktop\unet\u-net\data"
+image_folder = os.path.join(data_folder, "images")
+mask_folder = os.path.join(data_folder, "masks")
 model_folder = Path("model")
 model_folder.mkdir(exist_ok=True)
 model_path = "model/unet-voc.pt"
+
+# Parameters
 saving_interval = 10
-epoch_number = 100
-shuffle_data_loader = False
+epoch_number = 10
+batch_size = 2
+shuffle_data_loader = True
+learning_rate = 0.0001
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-transform = transforms.Compose([transforms.Resize((512, 512)), transforms.ToTensor(), transforms.Grayscale()])
-dataset = datasets.VOCSegmentation(
-    data_folder,
-    year="2007",
-    download=True,
-    image_set="train",
-    transform=transform,
-    target_transform=transform,
-)
+# Transformations
+transform_image = transforms.Compose([
+    transforms.Resize((512, 512)),
+    transforms.ToTensor()
+])
 
+transform_mask = transforms.Compose([
+    transforms.Resize((512, 512)),
+    transforms.ToTensor(),
+    transforms.Grayscale()
+])
+
+# Custom Dataset for Images and Masks
+class CellDataset(Dataset):
+    def __init__(self, image_folder, mask_folder, transform_image, transform_mask):
+        self.image_folder = image_folder
+        self.mask_folder = mask_folder
+        self.image_files = sorted(os.listdir(image_folder))
+        self.mask_files = sorted(os.listdir(mask_folder))
+        self.transform_image = transform_image
+        self.transform_mask = transform_mask
+
+    def __len__(self):
+        return len(self.image_files)
+
+    def __getitem__(self, idx):
+        image_path = os.path.join(self.image_folder, self.image_files[idx])
+        mask_path = os.path.join(self.mask_folder, self.mask_files[idx])
+
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")  # Grayscale
+
+        if self.transform_image:
+            image = self.transform_image(image)
+        if self.transform_mask:
+            mask = self.transform_mask(mask)
+
+        return image, mask
+
+# Training Function
 def train():
-    cell_dataset = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=shuffle_data_loader)
+    # Dataset and DataLoader
+    dataset = CellDataset(image_folder, mask_folder, transform_image, transform_mask)
+    cell_loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle_data_loader)
 
-    model = UNet(dimensions=22)
+    # Model, Loss, Optimizer
+    model = UNet(in_channels=3, out_channels=2)  # Adjust output channels as needed
     model.to(device)
     if os.path.isfile(model_path):
-        model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
-    optimizer = optim.RMSprop(
-        model.parameters(), lr=0.0001, weight_decay=1e-8, momentum=0.9
-    )
+        model.load_state_dict(torch.load(model_path, map_location=device))
+
+    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-8, momentum=0.9)
     criterion = nn.CrossEntropyLoss()
+
+    # Training Loop
     for epoch in range(epoch_number):
-        print(f"Epoch {epoch}")
-        losses = []
-        for i, batch in enumerate(cell_dataset):
-            input, target = batch
-            input = input.to(device)
-            target = target.type(torch.LongTensor).to(device)
-            # HACK to skip the last item that has a batch size of 1, not working with the cross entropy implementation
-            if input.shape[0] < 2:
-                continue
+        print(f"Epoch {epoch + 1}/{epoch_number}")
+        model.train()
+        epoch_losses = []
+
+        for i, batch in enumerate(cell_loader):
+            inputs, targets = batch
+            inputs = inputs.to(device)
+            targets = targets.long().squeeze(dim=1).to(device)  # Convert to integer labels
+
             optimizer.zero_grad()
-            output = model(input)
-            loss = criterion(output, target.squeeze())
-            # step_loss = loss.item()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
-            losses.append(loss.item())
-        # print the average loss for that epoch.
-        print(sum(losses) /len(losses))
+
+            epoch_losses.append(loss.item())
+
+        # Print average loss
+        avg_loss = sum(epoch_losses) / len(epoch_losses)
+        print(f"Epoch {epoch + 1} Loss: {avg_loss:.4f}")
+
+        # Save model at intervals
         if (epoch + 1) % saving_interval == 0:
-            print("Saving model")
+            torch.save(model.state_dict(), model_path)
+            print(f"Model saved at epoch {epoch + 1}")
 
-        torch.save(model.state_dict(), model_path)
+    # Final Save
     torch.save(model.state_dict(), model_path)
-    return
+    print("Final model saved.")
 
-
+# Run the training process
 if __name__ == "__main__":
     train()
