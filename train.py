@@ -10,9 +10,11 @@ from PIL import Image
 from unet import UNet
 
 # Paths
-data_folder = r"C:\Users\Lenovo\Desktop\unet\u-net\data"
-image_folder = os.path.join(data_folder, "images")
-mask_folder = os.path.join(data_folder, "masks")
+# data_folder = r"C:\Users\Lenovo\Desktop\unet\u-net\data"
+# image_folder = os.path.join(data_folder, "images")
+# mask_folder = os.path.join(data_folder, "masks")
+image_folder = "/content/drive/MyDrive/DL_preprocessed/images"
+mask_folder = "/content/drive/MyDrive/DL_preprocessed/masks"
 model_folder = Path("model")
 model_folder.mkdir(exist_ok=True)
 model_path = "model/unet-voc.pt"
@@ -20,7 +22,7 @@ model_path = "model/unet-voc.pt"
 # Parameters
 saving_interval = 10
 epoch_number = 10
-batch_size = 2
+batch_size = 32
 shuffle_data_loader = True
 learning_rate = 0.0001
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

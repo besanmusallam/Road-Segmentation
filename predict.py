@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from unet import UNet
 
 # Paths and Parameters
-data_folder = "data"
+data_folder = "/content/test_set_images.zip"
 model_path = "model/unet-voc.pt"
 batch_size = 1
 shuffle_data_loader = False
