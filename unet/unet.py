@@ -38,18 +38,24 @@ class UpLayer(nn.Module):
     def forward(self, x1, x2):
         # Upsample x2
         x2 = self.up(x2)
+
         # Pad x2 if dimensions differ from x1
         diffY = x1.size(2) - x2.size(2)
         diffX = x1.size(3) - x2.size(3)
         x2 = F.pad(x2, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
-        # Concatenate along channel dimension
+
+        # Debugging: Ensure dimensions match before concatenation
+        assert x1.size(2) == x2.size(2) and x1.size(3) == x2.size(3), \
+            f"Shape mismatch: x1 {x1.size()} x2 {x2.size()}"
+
+        # Concatenate along the channel dimension
         x = torch.cat([x1, x2], dim=1)
         return self.conv(x)
 
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1):
+    def __init__(self, in_channels=1, out_channels=2):
         super(UNet, self).__init__()
         self.conv1 = DoubleConv(in_channels, 64)
         self.down1 = DownLayer(64, 128)
@@ -57,15 +63,14 @@ class UNet(nn.Module):
         self.down3 = DownLayer(256, 512)
         self.down4 = DownLayer(512, 1024)
 
-        self.up1 = UpLayer(1024, 512)  # 1024 = 512 (decoder) + 512 (encoder)
-        self.up2 = UpLayer(512, 256)  # 512 = 256 + 256
-        self.up3 = UpLayer(256, 128)  # 256 = 128 + 128
-        self.up4 = UpLayer(128, 64)   # 128 = 64 + 64
-
+        self.up1 = UpLayer(1024, 512)
+        self.up2 = UpLayer(512, 256)
+        self.up3 = UpLayer(256, 128)
+        self.up4 = UpLayer(128, 64)
 
         self.last_conv = nn.Conv2d(64, out_channels, kernel_size=1)
 
-    def forward(self, x):
+    def forward(self, x, softmax=False):
         # Encoder
         x1 = self.conv1(x)
         x2 = self.down1(x1)
@@ -81,4 +86,6 @@ class UNet(nn.Module):
 
         # Final output
         output = self.last_conv(x1_up)
+        if softmax:
+            output = torch.sigmoid(output)  # Apply sigmoid for binary segmentation
         return output
