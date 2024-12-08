@@ -10,7 +10,7 @@ from unet import UNet
 # Paths and Parameters
 test_image_folder = r"C:\Users\Lenovo\Desktop\unet\u-net\data\test_set_images"
 
-model_path = "model/unet-voc.pt"
+model_path = "model/unet.pt"
 batch_size = 1
 shuffle_data_loader = False
 
