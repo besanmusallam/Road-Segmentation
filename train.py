@@ -12,8 +12,8 @@ from unet import UNet
 
 # Paths
 
-image_folder = "/content/drive/MyDrive/DL_preprocessed/images"
-mask_folder = "/content/drive/MyDrive/DL_preprocessed/masks"
+image_folder = "./u-net/data/images"
+mask_folder = "./u-net/data/masks"
 model_folder = Path("model")
 model_folder.mkdir(exist_ok=True)
 model_path = "model/unet.pt"
