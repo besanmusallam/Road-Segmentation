@@ -8,7 +8,7 @@ import numpy as np
 
 # Paths and Parameters
 test_image_folder = r"C:\Users\Lenovo\Desktop\unet\u-net\data\test_set_images"
-model_path = "model/unet.pt"  # Assuming best model is saved after training
+model_path = "model/unet_v2.pt"  # Assuming best model is saved after training
 batch_size = 1
 shuffle_data_loader = False
 
