@@ -9,8 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import numpy as np
 from sklearn.metrics import f1_score
-# from unet import UNet
-from unet.unet_enhanced import UNet_enhanced as UNet
+from unet import UNet
 import matplotlib.pyplot as plt  # For visualization
 
 # Paths
