@@ -10,11 +10,15 @@ from PIL import Image
 import numpy as np
 from sklearn.metrics import f1_score
 from unet import UNet
-import matplotlib.pyplot as plt  # For visualization
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split 
 
 # Paths
-image_folder = "/content/drive/MyDrive/DL_data/DL_preprocessed_with_noise/images"
-mask_folder = "/content/drive/MyDrive/DL_data/DL_preprocessed_with_noise/masks"
+# /content/drive/MyDrive/DL_data/DL_preprocessed_with_noise
+# /content/drive/MyDrive/DL_data/processed_without_aug
+# /content/drive/MyDrive/DL_data/DL_preprocessed_no_noise
+image_folder = "/content/drive/MyDrive/DL_data/processed_without_aug/images"
+mask_folder = "/content/drive/MyDrive/DL_data/processed_without_aug/masks"
 model_folder = Path("model")
 model_folder.mkdir(exist_ok=True)
 model_path = "model/unet.pt"
@@ -32,13 +36,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 transform_image = transforms.Compose([
     transforms.Resize((512, 512)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Normalize RGB values
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]) 
 ])
 
 transform_mask = transforms.Compose([
     transforms.Resize((512, 512)),
     transforms.ToTensor(),
-    transforms.Grayscale()  # Convert to 1-channel (binary) mask
+    transforms.Grayscale()  
 ])
 
 # Custom Dataset for Images and Masks
@@ -52,7 +56,7 @@ class CellDataset(Dataset):
         self.transform_mask = transform_mask
 
         for img, mask in zip(self.image_files, self.mask_files):
-            if img.split('.')[0].split('_')[-1] != mask.split('.')[0].split('_')[-1]:
+            if img.split('.')[0].split('')[-1] != mask.split('.')[0].split('')[-1]:
                 raise ValueError(f"Mismatch between image and mask filenames: {img}, {mask}")
 
     def __len__(self):
@@ -63,7 +67,7 @@ class CellDataset(Dataset):
         mask_path = os.path.join(self.mask_folder, self.mask_files[idx])
 
         image = Image.open(image_path).convert("RGB")
-        mask = Image.open(mask_path).convert("L")  # Grayscale mask for binary segmentation
+        mask = Image.open(mask_path).convert("L")  
 
         if self.transform_image:
             image = self.transform_image(image)
@@ -115,10 +119,34 @@ def plot_metrics():
     plt.close()
 
 
-# Training Function
+# Training Function with Data Split
 def train():
-    dataset = CellDataset(image_folder, mask_folder, transform_image, transform_mask)
-    cell_loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle_data_loader)
+    image_files = sorted(os.listdir(image_folder))
+    mask_files = sorted(os.listdir(mask_folder))
+
+    # Ensure images and masks match
+    assert len(image_files) == len(mask_files), "Mismatch between images and masks."
+
+    # splits (70% train, 15% val, 15% test)
+    train_images, temp_images, train_masks, temp_masks = train_test_split(image_files, mask_files, test_size=0.3, random_state=42)
+    val_images, test_images, val_masks, test_masks = train_test_split(temp_images, temp_masks, test_size=0.5, random_state=42)
+
+    # Create DataLoaders for each split
+    train_dataset = CellDataset(image_folder, mask_folder, transform_image, transform_mask)
+    val_dataset = CellDataset(image_folder, mask_folder, transform_image, transform_mask)
+    test_dataset = CellDataset(image_folder, mask_folder, transform_image, transform_mask)
+
+    train_dataset.image_files = train_images
+    train_dataset.mask_files = train_masks
+    val_dataset.image_files = val_images
+    val_dataset.mask_files = val_masks
+    test_dataset.image_files = test_images
+    test_dataset.mask_files = test_masks
+
+    # Create DataLoader objects for each set
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_data_loader)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     model = UNet(in_channels=3, out_channels=1)  # Binary segmentation
     model.to(device)
@@ -135,7 +163,8 @@ def train():
         epoch_losses = []
         all_targets, all_predictions = [], []
 
-        for i, batch in enumerate(cell_loader):
+        # Training loop
+        for i, batch in enumerate(train_loader):
             inputs, targets = batch
             inputs = inputs.to(device)
             targets = targets.to(device)
@@ -178,7 +207,7 @@ def train():
         if (epoch + 1) % saving_interval == 0:
             torch.save(model.state_dict(), model_path)
             print(f"Model saved at epoch {epoch + 1}")
-
+    
     print("Training complete.")
     print(f"Best F1 Score: {best_f1:.4f}")
     torch.save(model.state_dict(), model_path)
@@ -186,6 +215,32 @@ def train():
 
     # Plot the metrics
     plot_metrics()
+
+    # Test Evaluation
+    evaluate_on_test(model, test_loader)
+
+def evaluate_on_test(model, test_loader):
+    model.eval()
+    all_targets, all_predictions = [], []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            inputs, targets = batch
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+
+            outputs = model(inputs)
+            predictions = outputs > 0.5
+            all_targets.append(targets.cpu().numpy())
+            all_predictions.append(predictions.cpu().numpy())
+
+    all_targets = np.concatenate(all_targets)
+    all_predictions = np.concatenate(all_predictions)
+
+    f1_scores = calculate_f1_score(all_targets, all_predictions)
+    print(f"Test F1 Scores: {f1_scores}")
+    avg_f1 = f1_scores["average"]
+    print(f"Test F1 Score: {avg_f1:.4f}")
 
 # Run the training process
 if __name__ == "__main__":
