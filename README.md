@@ -9,8 +9,8 @@ This repository contains the implementation of road segmentation using satellite
 ```
 DL_project/u-net
 ├── baseline_unet
-│   ├── model/                # Saved models
 │   ├── unet/                 # U-Net model architecture
+|   ├── predict.py            # Predicting script
 │   ├── requirements.txt      # Dependencies
 │   ├── train.py              # Training script
 │   ├── unet_test.ipynb       # U-Net testing notebook
